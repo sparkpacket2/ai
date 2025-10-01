@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Chess Player</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0/chess.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+<style>
+  body { font-family: Arial, sans-serif; text-align:center; background:#f0f0f0; }
+  #chessboard { width: 400px; margin: 20px auto; }
+  #controls { margin-top:20px; }
+  #face { width:150px; border-radius:50%; margin:10px; }
+  #log { max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:10px; background:white; width:400px; margin:20px auto; text-align:left; }
+</style>
+</head>
+<body>
+
+<h1>AI Chess Player</h1>
+<img id="face" src="your_face_image.png" alt="AI Face">
+<div id="chessboard"></div>
+
+<div id="controls">
+  <input type="text" id="textMove" placeholder="e2e4">
+  <button onclick="playerMove()">Play Move</button>
+  <button onclick="startSpeech()">Talk to AI</button>
+</div>
+
+<div id="log"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/stockfish.js/stockfish.js"></script>
+<script>
+  const boardEl = document.getElementById('chessboard');
+  const logEl = document.getElementById('log');
+  let chess = new Chess();
+  let board = Chessboard('chessboard', {
+    draggable: true,
+    position: 'start',
+    onDrop: handleMove
+  });
+
+  // Load Stockfish AI
+  const engine = STOCKFISH();
+  engine.postMessage('uci');
+
+  engine.onmessage = function(event) {
+    if (typeof event === "string" && event.startsWith("bestmove")) {
+      const aiMove = event.split(" ")[1];
+      chess.move({ from: aiMove.substring(0,2), to: aiMove.substring(2,4) });
+      board.position(chess.fen());
+      speak(`I played ${aiMove}`);
+      log(`AI: ${aiMove}`);
+    }
+  };
+
+  function handleMove(source, target) {
+    const move = chess.move({ from: source, to: target, promotion: 'q' });
+    if (move === null) return 'snapback';
+    log(`You: ${source}${target}`);
+    engine.postMessage('position fen ' + chess.fen());
+    engine.postMessage('go depth 15');
+  }
+
+  function playerMove() {
+    const moveText = document.getElementById('textMove').value;
+    const move = chess.move({ from: moveText.slice(0,2), to: moveText.slice(2,4), promotion: 'q' });
+    if (!move) { alert("Invalid move!"); return; }
+    board.position(chess.fen());
+    log(`You: ${moveText}`);
+    engine.postMessage('position fen ' + chess.fen());
+    engine.postMessage('go depth 15');
+  }
+
+  // TTS function
+  function speak(text) {
+    const msg = new SpeechSynthesisUtterance(text);
+    window.speechSynthesis.speak(msg);
+  }
+
+  function log(text) {
+    logEl.innerHTML += text + "<br>";
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // Speech recognition for talking to AI
+  function startSpeech() {
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang = 'en-US';
+    recognition.start();
+
+    recognition.onresult = function(event) {
+      const speechText = event.results[0][0].transcript;
+      log(`You said: ${speechText}`);
+      speak(`You said: ${speechText}`);
+      recognition.stop();
+    };
+
+    recognition.onerror = function(e) {
+      console.error(e);
+      recognition.stop();
+    };
+  }
+</script>
+
+</body>
+</html>
